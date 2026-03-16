@@ -48,6 +48,43 @@ function getTargetData(targetType) {
   };
 }
 
+function enforceCutLimit(changedId) {
+  const players = Settings.amountOfPlayers;
+
+  const ids = ['leaderCut', 'member1Cut', 'member2Cut', 'member3Cut'].slice(0, players);
+
+  const totalWithoutChanged = ids.filter((id) => id !== changedId).reduce((sum, id) => sum + (Settings[id] || 0), 0);
+
+  const maxAllowed = 100 - totalWithoutChanged;
+
+  if (Settings[changedId] > maxAllowed) {
+    Settings[changedId] = maxAllowed;
+
+    const el = document.querySelector(`#${changedId}`);
+    if (el) el.value = maxAllowed;
+  }
+}
+
+function applyDefaultCuts(players) {
+  const defaults = {
+    1: [100],
+    2: [85, 15],
+    3: [70, 15, 15],
+    4: [55, 15, 15, 15],
+  };
+
+  const values = defaults[players] || defaults[1];
+
+  ['leaderCut', 'member1Cut', 'member2Cut', 'member3Cut'].forEach((id, i) => {
+    const v = values[i] ?? 0;
+
+    Settings[id] = v;
+
+    const el = document.querySelector(`#${id}`);
+    if (el) el.value = v;
+  });
+}
+
 function calculateLootForTarget(targetType, availableTables, remainingCapacity, allowOverfill = false) {
   if (remainingCapacity <= 0 || availableTables <= 0) {
     return { units: 0, presses: 0, tablesUsed: 0 };
@@ -308,7 +345,15 @@ function activateHandlers() {
   SettingProxy.addListener(
     Settings,
     'gold weed cash cocaine paintings primaryTarget isHardMode isWithinCooldown goldAlone leaderCut member1Cut member2Cut member3Cut',
-    calculateLoot
+    () => {
+      const active = document.activeElement?.id;
+
+      if (active && active.includes('Cut')) {
+        enforceCutLimit(active);
+      }
+
+      calculateLoot();
+    },
   );
 
   SettingProxy.addListener(Settings, 'amountOfPlayers', () => {
@@ -317,6 +362,7 @@ function activateHandlers() {
     [...inputs].forEach((element, index) => {
       element.parentElement.classList.toggle('hidden', Settings.amountOfPlayers <= index);
     });
+    applyDefaultCuts(Settings.amountOfPlayers);
     calculateLoot();
   })();
 }
